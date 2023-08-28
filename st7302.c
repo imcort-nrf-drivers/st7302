@@ -57,7 +57,7 @@ void st7302_begin(void)
     st7302_writeCommand(0x01);
     delay(120); 
     
-    st7302_writeCommand(0x38);                                              
+    st7302_writeCommand(0x38);//High power mode                                              
     st7302_writeCommand(0xEB);//Enable OTP    
     st7302_writeData8(0x02); 
     st7302_writeCommand(0xD7);//OTP Load Control    
@@ -133,3 +133,20 @@ void st7302_begin(void)
     delay(120);
     
 }
+
+//void st7302_setMemory(int x_start_byte, int y, int width, int height, uint8_t * data, int len) {
+//  // set buffer
+//  int len_i = 0;
+//  int width_byte_size = _width / 8;
+//  int part_width_byte_size = int(width / 8);
+//  int byte_start = y * width_byte_size + x_start_byte;
+//  for (int i = 0; i != height; i++) {
+//    for (int j = 0; j != part_width_byte_size; j++) {
+//        if (len_i == len) {
+//          return;
+//        }
+//        _buffer[byte_start + i * width_byte_size + j] = data[len_i];
+//        len_i++;
+//      }
+//  }
+//}
