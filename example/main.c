@@ -235,10 +235,10 @@ int main(void)
     st7302_begin();
 	
     st7302_addrSet(0,0,10,0x7c);
-    uint8_t sendd[125*11*3];
-    memset(sendd, 0x01, 125*11*3);
-    sendd[33] = 0xff;
-    st7302_writeData(sendd, 125*11*3);
+//    uint8_t sendd[125*11*3];
+//    memset(sendd, 0xff, 125*11*3);
+//    sendd[33] = 0xff;
+    st7302_writeData(BMP1, 125*11*3);
     delay(1000);
 
     while (1)
@@ -246,9 +246,9 @@ int main(void)
         NRF_LOG_FLUSH();
         __WFE();
         
-        sendd[0] <<= 1;
-    st7302_writeData(sendd, 125*11*3);
-        delay(1000);
+//        sendd[0] <<= 1;
+//    st7302_writeData(sendd, 1);
+//        delay(1000);
 
     }
 }
