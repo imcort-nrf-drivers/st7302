@@ -1,4 +1,13 @@
 #include "st7302.h"
+#include <math.h>
+
+#define BYTE_BIT_SIZE 8.0
+
+#define BUFFER_SIZE 4224
+static uint8_t _buffer[BUFFER_SIZE];
+static uint8_t _sendbuffer[BUFFER_SIZE];
+static int _width, _height;
+static int _buffer_size;
 
 static void st7302_writeCommand(uint8_t cmd) {
 
@@ -46,7 +55,7 @@ void st7302_addrSet(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
 		st7302_writeCommand(0x2c); //储存器写
 }
 
-void st7302_begin(void)
+void st7302_begin(uint8_t width, uint8_t height)
 {
     
     pinMode(ST7302_DC, OUTPUT);
@@ -99,7 +108,7 @@ void st7302_begin(void)
     st7302_writeCommand(0xB0);   //Duty Setting       
     st7302_writeData8(0x64);  //250duty/4=63    
     st7302_writeCommand(0x36);//Memory Data Access Control       
-    st7302_writeData8(0x00);  
+    st7302_writeData8(0x20);  
     st7302_writeCommand(0x3A);//Data Format Select 4 write for 24 bit       
     st7302_writeData8(0x11);     
     st7302_writeCommand(0xB9);//Source Setting       
@@ -130,23 +139,126 @@ void st7302_begin(void)
     st7302_writeData8(0); 
     st7302_writeData8(0x7C);  
     st7302_writeData8(0x2C);   //write image data
-    delay(120);
+    delay(100);
+    
+    _width = ceil(width / BYTE_BIT_SIZE) * BYTE_BIT_SIZE;
+    _height = ceil(height / 12.0) * 12;
+    _buffer_size = ceil(_height * _width / BYTE_BIT_SIZE);
+    
+    Debug("%d,%d,%d",_width,_height,_buffer_size);
+    
+    st7302_clear();
     
 }
 
-//void st7302_setMemory(int x_start_byte, int y, int width, int height, uint8_t * data, int len) {
-//  // set buffer
-//  int len_i = 0;
-//  int width_byte_size = _width / 8;
-//  int part_width_byte_size = int(width / 8);
-//  int byte_start = y * width_byte_size + x_start_byte;
-//  for (int i = 0; i != height; i++) {
-//    for (int j = 0; j != part_width_byte_size; j++) {
-//        if (len_i == len) {
-//          return;
-//        }
-//        _buffer[byte_start + i * width_byte_size + j] = data[len_i];
-//        len_i++;
-//      }
-//  }
-//}
+void st7302_clear(void)
+{
+    st7302_writeCommand(0xB9);
+    st7302_writeData8(0xE3);
+    delay(200);
+    st7302_writeCommand(0xB9);
+    st7302_writeData8(0x23);
+    
+    memset(_buffer, 0, BUFFER_SIZE);
+}
+
+void st7302_inversion_on(void)
+{
+    st7302_writeCommand(0x21);
+}
+
+void st7302_setMemory(int x_start_byte, int y, int width, int height, uint8_t * data, int len) {
+  // set buffer
+  int len_i = 0;
+  int width_byte_size = _width / BYTE_BIT_SIZE;
+  int part_width_byte_size = width / BYTE_BIT_SIZE;
+  int byte_start = y * width_byte_size + x_start_byte;
+  for (int i = 0; i != height; i++) {
+    for (int j = 0; j != part_width_byte_size; j++) {
+        if (len_i == len) {
+          return;
+        }
+        _buffer[byte_start + i * width_byte_size + j] = data[len_i];
+        len_i++;
+      }
+  }
+}
+
+static int sendcount = 0;
+
+static void _send_12_row_bit(int line_i, uint8_t byte0, uint8_t byte1, uint8_t byte2,
+                                 uint8_t byte3, uint8_t byte4, uint8_t byte5,
+                                 uint8_t byte6, uint8_t byte7, uint8_t byte8,
+                                 uint8_t byte9, uint8_t byte10, uint8_t byte11) {
+  uint8_t data = (byte0 << line_i >> 0 & 0xC0)
+                 | (byte1 << line_i >> 2 & 0x30)
+                 | (byte2 << line_i >> 4 & 0x0C)
+                 | (byte3 << line_i >> 6 & 0x03);
+  spi_send(&data, 1);
+  data = (byte4 << line_i>> 0 & 0xC0)
+         | (byte5 << line_i>> 2 & 0x30)
+         | (byte6 << line_i>> 4 & 0x0C)
+         | (byte7 << line_i >> 6 & 0x03);
+  spi_send(&data, 1);
+  data = (byte8 << line_i>> 0 & 0xC0)
+         | (byte9 << line_i >> 2 & 0x30)
+         | (byte10 << line_i>> 4 & 0x0C)
+         | (byte11 << line_i >> 6 & 0x03);
+  spi_send(&data, 1);
+                                     
+    sendcount += 3;
+}
+
+static void _send_12_row_byte(uint8_t byte0, uint8_t byte1, uint8_t byte2,
+                                  uint8_t byte3, uint8_t byte4, uint8_t byte5,
+                                  uint8_t byte6, uint8_t byte7, uint8_t byte8,
+                                  uint8_t byte9, uint8_t byte10, uint8_t byte11) {
+  _send_12_row_bit(0, byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11);
+  _send_12_row_bit(2, byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11);
+  _send_12_row_bit(4, byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11);
+  _send_12_row_bit(6, byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11);
+}
+
+static void _send_12_row(int _12_row) {
+  int _12_row_start = _width / BYTE_BIT_SIZE;
+  _12_row_start = _12_row_start * _12_row * 12;
+  int width_byte_size = _width / BYTE_BIT_SIZE;
+  for (int i = 0; i != width_byte_size; i++) {
+    _send_12_row_byte(_buffer[_12_row_start + width_byte_size * 0 + i],
+                      _buffer[_12_row_start + width_byte_size * 1 + i],
+                      _buffer[_12_row_start + width_byte_size * 2 + i],
+                      _buffer[_12_row_start + width_byte_size * 3 + i],
+                      _buffer[_12_row_start + width_byte_size * 4 + i],
+                      _buffer[_12_row_start + width_byte_size * 5 + i],
+                      _buffer[_12_row_start + width_byte_size * 6 + i],
+                      _buffer[_12_row_start + width_byte_size * 7 + i],
+                      _buffer[_12_row_start + width_byte_size * 8 + i],
+                      _buffer[_12_row_start + width_byte_size * 9 + i],
+                      _buffer[_12_row_start + width_byte_size * 10 + i],
+                      _buffer[_12_row_start + width_byte_size * 11 + i]);
+  }
+}
+
+void st7302_flushBuffer(void) {
+  // address set
+  st7302_writeCommand(0x2a);
+  st7302_writeData8(0x19);
+  st7302_writeData8(0x19 + _height / 12);
+  st7302_writeCommand(0x2b);
+  st7302_writeData8(0x00);
+  st7302_writeData8(_width / 2 - 1);
+  st7302_writeCommand(0x2c);
+    
+    
+  digitalWrite(ST7302_CS, 0);
+  digitalWrite(ST7302_DC, 1);
+    sendcount = 0;
+    memset(_sendbuffer, 0, BUFFER_SIZE);
+  // data send
+  for (int i = 0; i != _height / 12; i++) {
+    _send_12_row(i);
+  }
+  Debug("count %d", sendcount);
+  // pin reset
+  digitalWrite(ST7302_CS, 1);
+}
