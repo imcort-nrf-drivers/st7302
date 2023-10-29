@@ -194,19 +194,20 @@ static void _send_12_row_bit(int line_i, uint8_t byte0, uint8_t byte1, uint8_t b
                  | (byte1 << line_i >> 2 & 0x30)
                  | (byte2 << line_i >> 4 & 0x0C)
                  | (byte3 << line_i >> 6 & 0x03);
-  spi_send(&data, 1);
+  //spi_send(&data, 1);
+    _sendbuffer[sendcount++] = data;
   data = (byte4 << line_i>> 0 & 0xC0)
          | (byte5 << line_i>> 2 & 0x30)
          | (byte6 << line_i>> 4 & 0x0C)
          | (byte7 << line_i >> 6 & 0x03);
-  spi_send(&data, 1);
+  //spi_send(&data, 1);
+    _sendbuffer[sendcount++] = data;
   data = (byte8 << line_i>> 0 & 0xC0)
          | (byte9 << line_i >> 2 & 0x30)
          | (byte10 << line_i>> 4 & 0x0C)
          | (byte11 << line_i >> 6 & 0x03);
-  spi_send(&data, 1);
-                                     
-    sendcount += 3;
+  //spi_send(&data, 1);
+    _sendbuffer[sendcount++] = data;
 }
 
 static void _send_12_row_byte(uint8_t byte0, uint8_t byte1, uint8_t byte2,
@@ -258,6 +259,7 @@ void st7302_flushBuffer(void) {
   for (int i = 0; i != _height / 12; i++) {
     _send_12_row(i);
   }
+  spi_send(_sendbuffer, sendcount-1);
   Debug("count %d", sendcount);
   // pin reset
   digitalWrite(ST7302_CS, 1);
