@@ -264,3 +264,23 @@ void st7302_flushBuffer(void) {
   // pin reset
   digitalWrite(ST7302_CS, 1);
 }
+
+static const uint8_t set[] = {1, 2, 4, 8, 16, 32, 64, 128},
+                     clr[] = {(uint8_t)~1,  (uint8_t)~2,  (uint8_t)~4,
+                              (uint8_t)~8,  (uint8_t)~16, (uint8_t)~32,
+                              (uint8_t)~64, (uint8_t)~128};
+
+//256*132
+                              
+void st7302_setPixel(int x, int y, unsigned int val)
+{
+    if(val){
+
+        _buffer[y * 32 + (x / 8)] |= set[7 - (x & 7)];
+
+    } else {
+
+        _buffer[y * 32 + (x / 8)] &= clr[7 - (x & 7)];
+
+    }
+}
